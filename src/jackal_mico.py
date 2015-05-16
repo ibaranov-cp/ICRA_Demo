@@ -2,11 +2,13 @@
 import roslib; roslib.load_manifest('jaco_demo')
 import rospy
 import time
+import math
 
 import sys
 import numpy as np
 
 import actionlib
+import tf
 import jaco_msgs.msg
 from jaco_msgs.srv import *
 import std_msgs.msg
@@ -60,7 +62,7 @@ spine = [0.0,0.0,0.0]
 wristRight = [0.0,0.0,0.0]
 handRight = [0.0,0.0,0.0]
 gripState = 0
-scale = 2.0
+scale = 1.5
 homing = 0
 home = rospy.ServiceProxy('/mico_arm_driver/in/home_arm', HomeArm)
 
@@ -130,15 +132,28 @@ if __name__ == '__main__':
 
         gripper_client([200.0,200.0]) 
         grip = 0       
+        offset = 0.6
 
         while not rospy.is_shutdown():
 
 	    if homing == 1:
 	       home()
-            #hello_str = "hello world %s" % rospy.get_time()
-            diff = [-scale*(wristRight[0] - spine[0]-0.3),scale*(wristRight[1] - spine[1]),scale*(wristRight[2] - spine[2])]
+ 
+            #Calc position
+            diff = [-scale*(wristRight[0] - spine[0])+offset,scale*(wristRight[1] - spine[1]),scale*(wristRight[2] - spine[2])]
 
-            raw_pose = [diff[0], diff[2], diff[1], 0.707, 0.0, 0.0, 0.707]
+            #Calc orientation
+            V_D = [handRight[0] - wristRight[0],handRight[1] - wristRight[1],handRight[2]-wristRight[2]]
+            rpy = [0,math.asin(V_D[2]), math.atan2(V_D[2],V_D[1])]
+
+            quat = tf.transformations.quaternion_from_euler(rpy[0],rpy[1],rpy[2])
+            quat = tf.transformations.quaternion_from_euler(1.571,0,0)
+          
+            #rospy.loginfo(tf.transformations.euler_from_quaternion([0.707,0,0,0.707]))
+            #rospy.loginfo(rpy)
+            #rospy.loginfo(quat)
+
+            raw_pose = [diff[0], diff[2], diff[1], quat[0], quat[1],quat[2],quat[3]]
             mag = np.sqrt(sum(np.power(raw_pose[3:], 2)))
             poses = [(raw_pose[:3], raw_pose[3:])]
             
@@ -160,7 +175,7 @@ if __name__ == '__main__':
                 #time.sleep(4.0)
             else:
                 for pos, orient in poses:
-                    if pos != [0.6,0.0,0.0]:
+                    if pos != [offset,0.0,0.0]:
                         result = cartesian_pose_client(pos, orient)
                             
 
