@@ -15,6 +15,7 @@ from robotiq_s_model_control.msg import *
 import std_msgs.msg
 from std_msgs.msg import Float32MultiArray
 import geometry_msgs.msg
+from geometry_msgs.msg import Pose
 from sensor_msgs.msg import Joy
 
 #We want position: spineshoulder (20) - wristRight (10)
@@ -43,8 +44,8 @@ def kinect_x_call(array):
     
     if gripState <= 0:
         gripState = 0
-    if gripState >= 30:
-        gripState = 30
+    if gripState >= 15:
+        gripState = 15
 
 
 def kinect_y_call(array):
@@ -74,7 +75,31 @@ def joy_call(input):
 if __name__ == '__main__':
     try:
 
-        pub = rospy.Publisher('/SModelRobotOutput', SModel_robot_output, queue_size=1)
+        arm_pub = rospy.Publisher('/husky_ur5Arm', Pose, queue_size = 1)
+        msgArm = Pose()
+
+        finger_pub = rospy.Publisher('/SModelRobotOutput', SModel_robot_output, queue_size=1)
+        msg = SModel_robot_output()
+        msg.rACT =1	
+        msg.rMOD =0	
+        msg.rGTO =1	
+        msg.rATR =0	
+        msg.rGLV =0	
+        msg.rICF =0	
+        msg.rICS =0	
+        msg.rPRA =127
+        msg.rSPA =255
+        msg.rFRA =0	
+        msg.rPRB =155
+        msg.rSPB =0	
+        msg.rFRB =0	
+        msg.rPRC =255
+        msg.rSPC =0	
+        msg.rFRC =0	
+        msg.rPRS =0	
+        msg.rSPS =0	
+        msg.rFRS =0	    
+
         rospy.Subscriber("Position_X", Float32MultiArray, kinect_x_call)
         rospy.Subscriber("Position_Y", Float32MultiArray, kinect_y_call)
         rospy.Subscriber("Position_Z", Float32MultiArray, kinect_z_call)
@@ -101,36 +126,28 @@ if __name__ == '__main__':
 
             quat = tf.transformations.quaternion_from_euler(rpy[0],rpy[1],rpy[2])
             quat = tf.transformations.quaternion_from_euler(1.571,0,0)
-          
-            #rospy.loginfo(tf.transformations.euler_from_quaternion([0.707,0,0,0.707]))
-            #rospy.loginfo(rpy)
-            #rospy.loginfo(quat)
 
-            raw_pose = [diff[0], diff[2], diff[1], quat[0], quat[1],quat[2],quat[3]]
-            mag = np.sqrt(sum(np.power(raw_pose[3:], 2)))
-            poses = [(raw_pose[:3], raw_pose[3:])]
+            msgArm.position.x = diff[0]
+            msgArm.position.y = diff[1]
+            msgArm.position.z = diff[2]
+            msgArm.orientation.x = quat[0]
+            msgArm.orientation.y = quat[1]
+            msgArm.orientation.z = quat[2]
+            msgArm.orientation.w = quat[3]
+          
+            arm_pub.publish(msgArm)          
             
-            
-            if (gripState >= 30) & (grip == 0):
+            if (gripState >= 15) & (grip == 0):
                 rospy.loginfo('Closing!')
-#                time.sleep(1.0)       
-#                result = gripper_client([5500.0,5500.0])
-#                rospy.loginfo(result)
+                msg.rPRA = 127
+                finger_pub.publish(msg)
                 grip = 1
-#                time.sleep(5.0)
-            elif (gripState <= 0) & (grip == 1):
+            if (gripState <= 0) & (grip == 1):
                 rospy.loginfo('Opening!')       
- #               time.sleep(1.0)
+                msg.rPRA = 0
+                finger_pub.publish(msg)
                 grip = 0
- #               result = gripper_client([200.0,200.0])
- #               rospy.loginfo(result)
- #               home()
-                #time.sleep(4.0)
-            else:
-                rospy.loginfo('Moving!')       
-#                for pos, orient in poses:
-#                    if pos != [offset,0.0,0.0]:
-#                        result = cartesian_pose_client(pos, orient)
+
                             
 
             #rospy.loginfo(result)
