@@ -1,0 +1,7 @@
+<launch>
+
+    <node
+        pkg="ICRA_Demo" type="husky_ur5.py" name="husky_ur5">
+    </node>
+
+</launch>
