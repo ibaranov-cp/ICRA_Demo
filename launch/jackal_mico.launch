@@ -1,5 +1,7 @@
 <launch>
 
-
+    <node
+        pkg="ICRA_Demo" type="jackal_mico.py" name="mico_jackal">
+    </node>
 
 </launch>

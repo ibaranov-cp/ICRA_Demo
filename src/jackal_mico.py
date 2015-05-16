@@ -1,21 +1,23 @@
 #! /usr/bin/env python
 import roslib; roslib.load_manifest('jaco_demo')
 import rospy
+import time
 
 import sys
 import numpy as np
 
 import actionlib
 import jaco_msgs.msg
+from jaco_msgs.srv import *
 import std_msgs.msg
 from std_msgs.msg import Float32MultiArray
 import geometry_msgs.msg
+from sensor_msgs.msg import Joy
 
 def gripper_client(finger_positions):
     """Send a gripper goal to the action server."""
     action_address = '/mico_arm_driver/fingers/finger_positions'
-    client = actionlib.SimpleActionClient(action_address,
-                                          jaco_msgs.msg.SetFingersPositionAction)
+    client = actionlib.SimpleActionClient(action_address,jaco_msgs.msg.SetFingersPositionAction)
     client.wait_for_server()
 
     goal = jaco_msgs.msg.SetFingersPositionGoal()
@@ -59,6 +61,8 @@ wristRight = [0.0,0.0,0.0]
 handRight = [0.0,0.0,0.0]
 gripState = 0
 scale = 2.0
+homing = 0
+home = rospy.ServiceProxy('/mico_arm_driver/in/home_arm', HomeArm)
 
 def kinect_x_call(array):
     #rospy.loginfo(array.data[20])
@@ -101,6 +105,14 @@ def kinect_z_call(array):
     handRight[2] = array.data[11]
 
 
+def joy_call(input):
+    global homing
+    #rospy.loginfo(input.buttons)
+    if input.buttons[14] == 1:
+        homing = 1
+    else:
+        homing = 0
+    #rospy.loginfo(homing)
 
 if __name__ == '__main__':
     try:
@@ -109,36 +121,50 @@ if __name__ == '__main__':
         rospy.Subscriber("Position_X", Float32MultiArray, kinect_x_call)
         rospy.Subscriber("Position_Y", Float32MultiArray, kinect_y_call)
         rospy.Subscriber("Position_Z", Float32MultiArray, kinect_z_call)
+        rospy.Subscriber("/bluetooth_teleop/joy", Joy, joy_call)
         rospy.init_node('jackal_mico')
 
         rate = rospy.Rate(10) # 10hz
-        
-        gripper_client([100.0,100.0]) 
+        rospy.wait_for_service('/mico_arm_driver/in/home_arm')
+        home()
+
+        gripper_client([200.0,200.0]) 
         grip = 0       
 
         while not rospy.is_shutdown():
+
+	    if homing == 1:
+	       home()
             #hello_str = "hello world %s" % rospy.get_time()
-            diff = [-scale*(wristRight[0] - spine[0]-0.2),scale*(wristRight[1] - spine[1]),scale*(wristRight[2] - spine[2])]
+            diff = [-scale*(wristRight[0] - spine[0]-0.3),scale*(wristRight[1] - spine[1]),scale*(wristRight[2] - spine[2])]
 
             raw_pose = [diff[0], diff[2], diff[1], 0.707, 0.0, 0.0, 0.707]
             mag = np.sqrt(sum(np.power(raw_pose[3:], 2)))
             poses = [(raw_pose[:3], raw_pose[3:])]
             
-            for pos, orient in poses:
-                #print('    position: {},  orientation: {}'.format(pos, orient))
-                result = cartesian_pose_client(pos, orient)
-            
             
             if (gripState >= 30) & (grip == 0):
-                rospy.loginfo('Closing!')       
+                rospy.loginfo('Closing!')
+                time.sleep(1.0)       
                 result = gripper_client([5500.0,5500.0])
+                rospy.loginfo(result)
                 grip = 1
-            if (gripState <= 0) & (grip == 1):
+                time.sleep(5.0)
+            elif (gripState <= 0) & (grip == 1):
                 rospy.loginfo('Opening!')       
+                time.sleep(1.0)
                 grip = 0
-                result = gripper_client([100.0,100.0])
-            
-            rospy.loginfo(result)
+                result = gripper_client([200.0,200.0])
+                rospy.loginfo(result)
+                home()
+                #time.sleep(4.0)
+            else:
+                for pos, orient in poses:
+                    if pos != [0.6,0.0,0.0]:
+                        result = cartesian_pose_client(pos, orient)
+                            
+
+            #rospy.loginfo(result)
             rate.sleep()
 
 
